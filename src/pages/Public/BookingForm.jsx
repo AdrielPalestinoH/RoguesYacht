@@ -2,31 +2,34 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../api/supabase';
 import { Link } from 'react-router-dom';
 
+import { loadStripe } from '@stripe/stripe-js'; // <-- Importamos Stripe
+
+// Usa la llave pública que viste en tu imagen image_e643e7.png
+const stripePromise = loadStripe('pk_live_51TWXtnL7LdV3fEePqbqb3CcvUv846TGTbDK4qrtSN9q7jbU75eSJX99jRX4LLAf5Ma4B9WTd8pSKc5MsIoYw8Hib00yYLr0wI9'); 
+
 export default function BookingForm() {
   const [services, setServices] = useState([]);
   const [addons, setAddons] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [showAmenities, setShowAmenities] = useState(false);
+  const [loading, setLoading] = useState(false); // Estado para el botón
   
   const [selectedService, setSelectedService] = useState('');
-  const [selectedAddons, setSelectedAddons] = useState({}); // { id: cantidad }
+  const [selectedAddons, setSelectedAddons] = useState({}); 
   const [formData, setFormData] = useState({
     name: '', email: '', phone: '', date: '', time: '', pax: 1
   });
 
-useEffect(() => {
-  const loadData = async () => {
-    const { data: srv } = await supabase.from('services').select('*');
-    const { data: add } = await supabase.from('add_ons').select('*');
-    
-    console.log("Servicios cargados:", srv);
-    console.log("Addons cargados:", add); // <-- Revisa esto en la consola
-    
-    setServices(srv || []);
-    setAddons(add || []);
-  };
-  loadData();
-}, []);
+  useEffect(() => {
+    const loadData = async () => {
+      const { data: srv } = await supabase.from('services').select('*');
+      const { data: add } = await supabase.from('add_ons').select('*');
+      setServices(srv || []);
+      setAddons(add || []);
+    };
+    loadData();
+  }, []);
+
   useEffect(() => {
     if (selectedService) {
       supabase.from('service_schedules')
@@ -44,7 +47,6 @@ useEffect(() => {
     });
   };
 
-  // CÁLCULO TOTAL
   const calculateTotal = () => {
     const servicePrice = services.find(s => s.id === selectedService)?.base_price_mxn || 0;
     const addonsTotal = Object.entries(selectedAddons).reduce((acc, [id, qty]) => {
@@ -54,20 +56,75 @@ useEffect(() => {
     return servicePrice + addonsTotal;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const total = calculateTotal();
-    alert(`Procediendo al registro de reserva por $${total.toLocaleString()} MXN`);
-    // Aquí irá la lógica de inserción que ya tenemos
-  };
-
-  // Helper para renderizar los items del "carrito" en el formulario
   const cartItems = Object.entries(selectedAddons)
     .filter(([_, qty]) => qty > 0)
     .map(([id, qty]) => {
       const item = addons.find(a => a.id === id);
       return { ...item, qty };
     });
+
+  // --- NUEVA LÓGICA DE SUBMIT CON STRIPE ---
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const total = calculateTotal();
+    const stripe = await stripePromise;
+
+    // 1. Guardar en Supabase para que aparezca en tu Dashboard
+    const { data: booking, error: dbError } = await supabase
+      .from('bookings') // Asegúrate de que tu tabla se llame así
+      .insert([{
+        customer_name: formData.name,
+        customer_email: formData.email,
+        customer_phone: formData.phone,
+        booking_date: formData.date,
+        booking_time: formData.time,
+        service_id: selectedService,
+        total_amount: total,
+        status: 'pending_payment', // Lo marcamos como pendiente
+        addons_details: cartItems // Guardamos el JSON de lo que pidió
+      }])
+      .select()
+      .single();
+
+    if (dbError) {
+      alert("Error al registrar reserva: " + dbError.message);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Crear sesión en Stripe (Llamada a tu API/Edge Function)
+    try {
+      const response = await fetch('TU_URL_DE_EDGE_FUNCTION_O_API', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: booking.id,
+          total: total,
+          email: formData.email,
+          items: [
+            { name: services.find(s => s.id === selectedService)?.name, price: services.find(s => s.id === selectedService)?.base_price_mxn },
+            ...cartItems.map(i => ({ name: i.name, price: i.price_mxn, qty: i.qty }))
+          ]
+        })
+      });
+
+      const session = await response.json();
+
+      // 3. Redirigir a la pasarela de pago
+      const { error: stripeError } = await stripe.redirectToCheckout({
+        sessionId: session.id,
+      });
+
+      if (stripeError) alert(stripeError.message);
+
+    } catch (err) {
+      console.error("Stripe Error:", err);
+      alert("Hubo un problema con la pasarela de pagos.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#1a2e4a]">
@@ -101,7 +158,6 @@ useEffect(() => {
               <h2 className="text-2xl font-serif mb-8 border-b pb-4">Detalles de Reserva</h2>
               
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Inputs de contacto */}
                 <input type="text" placeholder="Nombre completo" required className="w-full p-4 bg-[#f8fafb] border border-[#e2eff0] rounded-2xl" onChange={e => setFormData({...formData, name: e.target.value})} />
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -109,7 +165,6 @@ useEffect(() => {
                   <input type="tel" placeholder="Teléfono" required className="w-full p-4 bg-[#f8fafb] border border-[#e2eff0] rounded-2xl text-sm" onChange={e => setFormData({...formData, phone: e.target.value})} />
                 </div>
 
-                {/* Yate y Horario */}
                 <select required className="w-full p-4 bg-[#f8fafb] border border-[#e2eff0] rounded-2xl" onChange={e => setSelectedService(e.target.value)}>
                   <option value="">Selecciona tu embarcación</option>
                   {services.map(s => <option key={s.id} value={s.id}>{s.name} (${s.base_price_mxn.toLocaleString()})</option>)}
@@ -123,7 +178,6 @@ useEffect(() => {
                   </select>
                 </div>
 
-                {/* BOTÓN ADD-ONS */}
                 <button 
                   type="button" 
                   onClick={() => setShowAmenities(true)}
@@ -132,7 +186,6 @@ useEffect(() => {
                   <span>✨</span> Personalizar Extras
                 </button>
 
-                {/* MINI CARRITO - Solo se ve si hay algo seleccionado */}
                 {cartItems.length > 0 && (
                   <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Extras añadidos</p>
@@ -150,8 +203,21 @@ useEffect(() => {
                     <span className="text-gray-400 font-bold text-xs uppercase">Total Estimado</span>
                     <span className="text-4xl font-serif font-bold text-[#1a2e4a]">${calculateTotal().toLocaleString()} <span className="text-xs font-sans text-gray-400">MXN</span></span>
                   </div>
-                  <button type="submit" className="w-full bg-[#1a2e4a] text-white py-6 rounded-full font-bold text-lg hover:bg-[#3ab5b5] transition-all shadow-xl">
-                    Confirmar y Pagar
+
+                  {/* CHECKBOX LEGAL (Obligatorio para Stripe) */}
+                  <div className="flex items-start gap-2 mb-4">
+                    <input type="checkbox" required className="mt-1 accent-[#4ec6c6]" />
+                    <label className="text-[10px] text-gray-500 leading-tight">
+                      He leído y acepto el <Link to="/privacidad" className="text-[#4ec6c6] font-bold underline">Aviso de Privacidad</Link>. Mis datos serán procesados para la reserva.
+                    </label>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="w-full bg-[#1a2e4a] text-white py-6 rounded-full font-bold text-lg hover:bg-[#3ab5b5] transition-all shadow-xl disabled:bg-gray-300"
+                  >
+                    {loading ? "Procesando..." : "Confirmar y Pagar"}
                   </button>
                 </div>
               </form>
@@ -160,7 +226,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* MODAL DE CARRITO GOURMET */}
+      {/* ... MODAL DE CARRITO GOURMET SE MANTIENE IGUAL ... */}
       {showAmenities && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-[#1a2e4a]/80 backdrop-blur-lg" onClick={() => setShowAmenities(false)}></div>
@@ -171,7 +237,6 @@ useEffect(() => {
             </div>
             
             <div className="space-y-12">
-              {/* SECCIÓN BEBIDAS */}
               <div>
                 <h3 className="text-sm font-black uppercase tracking-[0.2em] text-[#4ec6c6] mb-6 flex items-center gap-4">
                   <span>Bebidas & Cava</span>
@@ -184,7 +249,6 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* SECCIÓN ALIMENTOS */}
               <div>
                 <h3 className="text-sm font-black uppercase tracking-[0.2em] text-[#4ec6c6] mb-6 flex items-center gap-4">
                   <span>Menú Gourmet</span>
@@ -219,7 +283,7 @@ useEffect(() => {
   );
 }
 
-// Sub-componente para las tarjetas del modal
+// Sub-componente para las tarjetas del modal (se mantiene igual)
 function AddonCard({ addon, qty, update }) {
   return (
     <div className={`p-6 rounded-[32px] border transition-all ${qty > 0 ? 'border-[#4ec6c6] bg-[#4ec6c6]/5' : 'border-[#e2eff0] hover:border-gray-300'}`}>
