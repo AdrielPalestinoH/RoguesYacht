@@ -233,12 +233,19 @@ useEffect(() => {
         </div>
       </section>
 
-      <footer>
-        <div className="container">
-          <p className="playfair" style={{fontSize:'26px', color:'#fff', marginBottom:'15px'}}>Rogues Yacht Co.</p>
-          <p style={{opacity: 0.5, fontSize: '13px'}}>© 2026 Todos los derechos reservados. Lujo y exclusividad en el mar.</p>
-        </div>
-      </footer>
+<footer className="bg-slate-900 text-white p-10">
+  <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
+    <p className="text-slate-400 text-sm">© 2026 Tu Marca Yates. Todos los derechos reservados.</p>
+    
+    <div className="flex gap-6 mt-4 md:mt-0">
+      {/* Link de React Router */}
+      <Link to="/privacidad" className="text-slate-400 hover:text-[#4ec6c6] text-xs transition-colors">
+        Aviso de Privacidad
+      </Link>
+      
+    </div>
+  </div>
+</footer>
     </div>
   );
 }

@@ -8,6 +8,9 @@ import BookingForm from './pages/Public/BookingForm';
 import Login from './pages/Admin/Login';
 import Dashboard from './pages/Admin/Dashboard';
 
+import PrivacyPolicy from './PrivacyPolicy';
+
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,6 +58,8 @@ export default function App() {
   path="/dashboard/services" 
   element={session ? <Dashboard view="services" /> : <Navigate to="/login" />} 
 />
+
+<Route path="/privacidad" element={<PrivacyPolicy />} />
 
 <Route 
   path="/dashboard/reservations" 
