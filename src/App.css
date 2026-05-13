@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Si quieres que las fuentes se vean exactas al diseño, añade esto: */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+/* Esto va en index.css o App.css */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden; /* Evita el scroll horizontal molesto */
+}
+
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
