@@ -3,6 +3,7 @@ import Sidebar from '../../components/Admin/Sidebar';
 import ReservationsTable from '../../components/Admin/ReservationsTable';
 import Inventory from '../../components/Admin/Inventory'; 
 import ServicesManager from '../../components/Admin/ServicesManager';
+import AdminCategory from '../../components/Admin/AdminCategory'; 
 
 export default function Dashboard({ view = 'stats' }) {
   return (
@@ -40,6 +41,17 @@ export default function Dashboard({ view = 'stats' }) {
               <p className="text-slate-500">Administra tus yates y paquetes principales</p>
             </header>
             <ServicesManager />
+          </>
+        )}
+
+        {/* VISTA: SERVICIOS (YATES) */}
+        {view === 'category' && (
+          <>
+            <header className="mb-10">
+              <h1 className="text-3xl font-bold text-slate-800">Gestión de Servicios</h1>
+              <p className="text-slate-500">Administra Categorias</p>
+            </header>
+            <AdminCategory />
           </>
         )}
       </main>

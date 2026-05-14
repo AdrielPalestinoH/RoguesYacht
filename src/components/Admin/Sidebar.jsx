@@ -20,6 +20,7 @@ export default function Sidebar() {
   <Link to="/dashboard" className="block p-3 rounded-lg hover:bg-white/10 transition">📊 Dashboard</Link>
   <Link to="/dashboard/services" className="block p-3 rounded-lg hover:bg-white/10 transition">🛥️ Servicios (Yates)</Link>
   <Link to="/dashboard/reservations" className="block p-3 rounded-lg hover:bg-white/10 transition">📅 Reservaciones</Link>
+ 
   <Link to="/dashboard/inventory" className="block p-3 rounded-lg hover:bg-white/10 transition">🍾 Inventario Add-ons</Link>
 </nav>
 
